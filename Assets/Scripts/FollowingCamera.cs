@@ -2,48 +2,54 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class FollowingCamera : MonoBehaviour {
-    public Transform Target;
+public class FollowingCamera : MonoBehaviour
+{
 
-    [Tooltip("Use scene's current setup for offset.")]
-    public bool UseInitial = false;
+    public Transform car;
+    public float distance = 6.4f;
+    public float height = 1.4f;
+    public float rotationDamping = 3.0f;
+    public float heightDamping = 2.0f;
+    public float zoomRatio = 0.5f;
+    public float defaultFOV = 60f;
 
-    [Tooltip("Local offset vs target.")]
-    public Vector3 Relative = new Vector3(0, 0, 0);    // Above & Forward, look-up the front-side
+    private Vector3 rotationVector;
 
-    [Tooltip("Global offset vs target.")]
-    public Vector3 Offset = new Vector3(0, 5, -5);
+    void LateUpdate()
+    {
+        float wantedAngle = rotationVector.y;
+        float wantedHeight = car.position.y + height;
+        float myAngle = transform.eulerAngles.y;
+        float myHeight = transform.position.y;
 
-    [Tooltip("Static rotation target (degree).")]
-    public Vector3 Rotation = new Vector3(30, 0, 0);    // Example for looking down (degree)
+        myAngle = Mathf.LerpAngle(myAngle, wantedAngle, rotationDamping * Time.deltaTime);
+        myHeight = Mathf.Lerp(myHeight, wantedHeight, heightDamping * Time.deltaTime);
 
-    [Tooltip("Approximately the time it will take to reach the target.")]
-    public float smoothTime = 0.3F;
-
-    private Vector3 relative;
-    private Vector3 offset;
-    private Vector3 rotation;
-    private Vector3 velocity = Vector3.zero;
-
-
-    void Start() {
-        if (UseInitial) {
-            relative = Relative;
-            offset = transform.position - Target.transform.position;   // Vector operation
-            rotation = transform.rotation.eulerAngles;
-        } else {
-            relative = Relative;
-            offset = Offset;
-            rotation = Rotation;
-        }
+        Quaternion currentRotation = Quaternion.Euler(0, myAngle, 0);
+        transform.position = car.position;
+        transform.position -= currentRotation * Vector3.forward * distance;
+        Vector3 temp = transform.position; //temporary variable so Unity doesn't complain
+        temp.y = myHeight;
+        transform.position = temp;
+        transform.LookAt(car);
     }
 
-    void Update() {
-        // Define a target position relative to the the target transform
-        Vector3 targetPosition = Target.TransformPoint(relative) + offset;
-
-        // Smoothly move the camera towards that target position
-        transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref velocity, smoothTime);
-        //transform.rotation = Quaternion.Euler(rotation);
+    void FixedUpdate()
+    {
+        Vector3 localVelocity = car.InverseTransformDirection(car.GetComponent<Rigidbody>().velocity);
+        if (localVelocity.z < -0.1f)
+        {
+            Vector3 temp = rotationVector; //because temporary variables seem to be removed after a closing bracket "}" we can use the same variable name multiple times.
+            temp.y = car.eulerAngles.y + 180;
+            rotationVector = temp;
+        }
+        else
+        {
+            Vector3 temp = rotationVector;
+            temp.y = car.eulerAngles.y;
+            rotationVector = temp;
+        }
+        float acc = car.GetComponent<Rigidbody>().velocity.magnitude;
+        GetComponent<Camera>().fieldOfView = defaultFOV + acc * zoomRatio * Time.deltaTime;  //he removed * Time.deltaTime but it works better if you leave it like this.
     }
 }
